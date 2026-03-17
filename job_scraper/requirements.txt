@@ -1,4 +1,0 @@
-playwright
-click
-python-telegram-bot
-python-dotenv
