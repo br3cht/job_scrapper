@@ -38,6 +38,7 @@ python main.py clear                               # Limpar banco
 ```bash
 --sites indeed,remoteok,weworkremotely,wellfound  # Sites específicos
 --remote/--no-remote                              # Apenas remotas (padrão: true)
+--indeed-region br|world                          # Região do Indeed (padrão: br)
 ```
 
 ## Plataformas suportadas

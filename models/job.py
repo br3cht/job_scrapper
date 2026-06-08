@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
-from datetime import datetime
+from typing import Optional, List
 
 
 @dataclass
@@ -17,6 +16,7 @@ class Job:
     posted_date: Optional[str] = None
     created_at: Optional[datetime] = None
     sent_to_telegram: bool = False
+    keywords_found: Optional[List[str]] = None
 
     def __post_init__(self):
         if self.created_at is None:
@@ -35,6 +35,7 @@ class Job:
             'posted_date': self.posted_date,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'sent_to_telegram': self.sent_to_telegram,
+            'keywords_found': self.keywords_found,
         }
 
     def to_telegram_message(self) -> str:

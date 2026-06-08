@@ -2,3 +2,5 @@ playwright
 click
 python-telegram-bot
 python-dotenv
+aiohttp
+beautifulsoup4

@@ -11,6 +11,7 @@ from scrapers.indeed import IndeedScraper
 from scrapers.remoteok import RemoteOKScraper
 from scrapers.weworkremotely import WeWorkRemotelyScraper
 from scrapers.wellfound import WellfoundScraper
+from utils.description import fetch_descriptions_parallel, filter_jobs_by_keywords
 
 
 SCRAPERS = {
@@ -21,14 +22,18 @@ SCRAPERS = {
 }
 
 
-async def run_scrapers(query: str, sites: List[str] = None) -> List[Job]:
+async def run_scrapers(query: str, sites: List[str] = None, indeed_region: str = "br") -> List[Job]:
     if sites is None:
         sites = list(SCRAPERS.keys())
     
     tasks = []
     for site in sites:
-        if site.lower() in SCRAPERS:
-            scraper = SCRAPERS[site.lower()]()
+        site_key = site.lower()
+        if site_key in SCRAPERS:
+            if site_key == "indeed":
+                scraper = SCRAPERS[site_key](region=indeed_region)
+            else:
+                scraper = SCRAPERS[site_key]()
             tasks.append(scraper.search(query))
     
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -73,9 +78,10 @@ def cli():
 
 @cli.command()
 @click.argument('query')
-@click.option('--sites', '-s', help='Comma-separated list of sites (indeed,remoteok,weworkremotely,wellfound)')
+@click.option('--sites', '-s', default=None, help='Comma-separated list of sites (indeed,remoteok,weworkremotely,wellfound)')
 @click.option('--remote/--no-remote', default=True, help='Search remote jobs only')
-def search(query: str, sites: str, remote: bool):
+@click.option('--indeed-region', type=click.Choice(['br', 'world']), default='br', show_default=True, help='Indeed region: br or world')
+def search(query: str, sites: str, remote: bool, indeed_region: str):
     """Search for jobs across multiple platforms"""
     site_list = sites.split(',') if sites else None
     
@@ -84,10 +90,18 @@ def search(query: str, sites: str, remote: bool):
         click.echo(f"Sites: {', '.join(site_list)}")
     else:
         click.echo("Sites: All")
+    if not site_list or 'indeed' in [site.lower() for site in site_list]:
+        click.echo(f"Indeed region: {indeed_region}")
     
     click.echo("\nStarting scrapers...")
     
-    jobs = asyncio.run(run_scrapers(query, site_list))
+    jobs = asyncio.run(run_scrapers(query, site_list, indeed_region))
+    
+    click.echo(f"Fetching job descriptions...")
+    jobs = asyncio.run(fetch_descriptions_parallel(jobs))
+    
+    click.echo(f"Filtering jobs by keywords...")
+    jobs = filter_jobs_by_keywords(jobs)
     
     db = Database()
     saved = db.save_jobs(jobs)
