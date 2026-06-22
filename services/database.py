@@ -135,3 +135,91 @@ class Database:
         count = cursor.fetchone()[0]
         conn.close()
         return count
+
+    def get_jobs_dict(
+        self,
+        source: Optional[str] = None,
+        sent: Optional[bool] = None,
+        search: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[dict]:
+        """Return jobs (including their id) as dicts, with optional filters.
+
+        Used by the web dashboard so it can reference jobs by id.
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        clauses = []
+        params: list = []
+        if source:
+            clauses.append('source = ?')
+            params.append(source)
+        if sent is not None:
+            clauses.append('sent_to_telegram = ?')
+            params.append(1 if sent else 0)
+        if search:
+            clauses.append('(title LIKE ? OR company LIKE ? OR description LIKE ?)')
+            like = f'%{search}%'
+            params.extend([like, like, like])
+
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ''
+        query = f'SELECT * FROM jobs {where} ORDER BY created_at DESC'
+        if limit is not None:
+            query += ' LIMIT ? OFFSET ?'
+            params.extend([limit, offset])
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    def get_sources(self) -> List[str]:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('SELECT DISTINCT source FROM jobs ORDER BY source')
+        sources = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return sources
+
+    def get_stats(self) -> dict:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT COUNT(*) FROM jobs')
+        total = cursor.fetchone()[0]
+
+        cursor.execute('SELECT COUNT(*) FROM jobs WHERE sent_to_telegram = 1')
+        sent = cursor.fetchone()[0]
+
+        cursor.execute('SELECT source, COUNT(*) FROM jobs GROUP BY source ORDER BY COUNT(*) DESC')
+        by_source = [{'source': row[0], 'count': row[1]} for row in cursor.fetchall()]
+
+        cursor.execute('''
+            SELECT substr(created_at, 1, 10) AS day, COUNT(*)
+            FROM jobs
+            GROUP BY day
+            ORDER BY day DESC
+            LIMIT 14
+        ''')
+        by_day = [{'day': row[0], 'count': row[1]} for row in cursor.fetchall()]
+
+        conn.close()
+        return {
+            'total': total,
+            'sent': sent,
+            'unsent': total - sent,
+            'by_source': by_source,
+            'by_day': list(reversed(by_day)),
+        }
+
+    def delete_job(self, job_id: int) -> bool:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM jobs WHERE id = ?', (job_id,))
+        conn.commit()
+        deleted = cursor.rowcount > 0
+        conn.close()
+        return deleted
