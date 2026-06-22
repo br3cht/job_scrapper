@@ -1,0 +1,15 @@
+venv/
+vevn/
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.git/
+.env
+jobs.db
+*.db
+vagas.md
+.dockerignore
+Dockerfile
+README.md

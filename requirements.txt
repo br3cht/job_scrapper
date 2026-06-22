@@ -4,3 +4,5 @@ python-telegram-bot
 python-dotenv
 aiohttp
 beautifulsoup4
+fastapi
+uvicorn[standard]

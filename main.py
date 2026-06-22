@@ -1,6 +1,7 @@
 import asyncio
 import sys
-from typing import List
+from pathlib import Path
+from typing import List, Optional
 
 import click
 
@@ -70,6 +71,56 @@ def display_jobs(jobs: List[Job]):
             click.echo("✓ Already sent to Telegram")
 
 
+def _markdown_value(value: Optional[str]) -> str:
+    return value.strip() if value else "N/A"
+
+
+def jobs_to_markdown(jobs: List[Job]) -> str:
+    lines = [
+        "# Vagas",
+        "",
+        f"Total: {len(jobs)}",
+        "",
+    ]
+
+    if not jobs:
+        lines.append("Nenhuma vaga encontrada.")
+        lines.append("")
+        return "\n".join(lines)
+
+    for index, job in enumerate(jobs, 1):
+        lines.extend([
+            f"## {index}. {_markdown_value(job.title)}",
+            "",
+            f"- **Empresa:** {_markdown_value(job.company)}",
+            f"- **Local:** {_markdown_value(job.location)}",
+            f"- **Salario:** {_markdown_value(job.salary)}",
+            f"- **Tipo:** {_markdown_value(job.job_type)}",
+            f"- **Data:** {_markdown_value(job.posted_date)}",
+            f"- **Fonte:** {_markdown_value(job.source)}",
+            f"- **URL:** {job.url}",
+        ])
+
+        if job.description:
+            lines.extend([
+                "",
+                "### Descricao",
+                "",
+                job.description.strip(),
+            ])
+
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def write_jobs_markdown(jobs: List[Job], output_path: str) -> Path:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(jobs_to_markdown(jobs), encoding="utf-8")
+    return path
+
+
 @click.group()
 def cli():
     """Job Scraper - Search remote jobs from multiple platforms"""
@@ -111,7 +162,8 @@ def search(query: str, sites: str, remote: bool, indeed_region: str):
 
 @cli.command()
 @click.option('--all/--unsent', default=False, help='Show all jobs or only unsent')
-def list(all: bool):
+@click.option('--markdown', '-m', 'markdown_path', default=None, type=click.Path(dir_okay=False, writable=True), help='Save listed jobs to a Markdown file')
+def list(all: bool, markdown_path: Optional[str]):
     """List jobs from database"""
     db = Database()
     
@@ -122,6 +174,10 @@ def list(all: bool):
     
     click.echo(f"\nFound {len(jobs)} jobs in database.\n")
     display_jobs(jobs)
+
+    if markdown_path:
+        path = write_jobs_markdown(jobs, markdown_path)
+        click.echo(f"\nMarkdown file generated: {path}")
 
 
 @cli.command()
@@ -165,6 +221,18 @@ def count():
     db = Database()
     count = db.get_count()
     click.echo(f"Total jobs in database: {count}")
+
+
+@cli.command()
+@click.option('--host', default='0.0.0.0', show_default=True, help='Host to bind')
+@click.option('--port', '-p', default=8000, show_default=True, help='Port to bind')
+@click.option('--reload', is_flag=True, default=False, help='Enable auto-reload (dev)')
+def serve(host: str, port: int, reload: bool):
+    """Start the web dashboard"""
+    import uvicorn
+
+    click.echo(f"Starting dashboard at http://{host}:{port}")
+    uvicorn.run("web.app:app", host=host, port=port, reload=reload)
 
 
 if __name__ == '__main__':

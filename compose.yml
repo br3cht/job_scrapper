@@ -1,0 +1,19 @@
+services:
+  dashboard:
+    build: .
+    image: job-scraper-dashboard
+    container_name: job-scraper-dashboard
+    ports:
+      - "8000:8000"
+    environment:
+      # Persisted inside the named volume below
+      DATABASE_PATH: /data/jobs.db
+      # Configure to enable the "Enviar p/ Telegram" button
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    volumes:
+      - jobs-data:/data
+    restart: unless-stopped
+
+volumes:
+  jobs-data:
